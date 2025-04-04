@@ -20,11 +20,12 @@ def create_app():
     # 初始化扩展
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'  # 确保登录视图指向蓝图
+    login_manager.login_view = 'auth.login'
 
     # 注册蓝图（关键步骤！）
-    from app.routes import auth  # 必须在此处导入，避免循环依赖
+    from app.routes import auth, main  # 必须在此处导入，避免循环依赖
     app.register_blueprint(auth)
+    app.register_blueprint(main)
     
     with app.app_context():
         db.create_all()
