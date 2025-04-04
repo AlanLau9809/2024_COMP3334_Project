@@ -59,3 +59,4 @@ def logout():
     db.session.commit()
     logout_user()
     return redirect(url_for('auth.login'))
+

@@ -1,0 +1,172 @@
+<!-- app/templates/main.html -->
+{% extends "base.html" %}
+
+{% block title %}Secure Storage - Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- File Upload Section -->
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="bi bi-upload me-2"></i>Upload New File</h4>
+        </div>
+        <div class="card-body">
+            <form id="uploadForm" method="POST" enctype="multipart/form-data" 
+                  action="{{ url_for('main.upload') }}">
+                <div class="mb-3">
+                    <input class="form-control" type="file" name="file" id="fileInput" required
+                           accept=".txt,.pdf,.doc,.docx,.xls,.xlsx" onchange="validateFileName(this)">
+                    <small class="form-text text-muted">
+                        Allowed formats: documents, spreadsheets (Max 50MB)
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-shield-lock me-2"></i>Encrypt & Upload
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- File List Section -->
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-info text-white">
+            <h4 class="mb-0"><i class="bi bi-files me-2"></i>Your Encrypted Files</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col">Filename</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Uploaded</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in files %}
+                        <tr>
+                            <td>{{ file.filename }}</td>
+                            <td>{{ file.file_size | filesizeformat }}</td>
+                            <td>{{ file.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('main.download', file_id=file.file_id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                       <i class="bi bi-download"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-warning" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#shareModal"
+                                            data-file-id="{{ file.file_id }}">
+                                        <i class="bi bi-share"></i>
+                                    </button>
+                                    <form class="d-inline" 
+                                          action="{{ url_for('main.delete', file_id=file.file_id) }}" 
+                                          method="POST">
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Permanently delete this file?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center">No files found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Log Section -->
+    <div class="card shadow">
+        <div class="card-header bg-secondary text-white">
+            <h4 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h4>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                {% for log in activity_logs %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-{{ 'box-arrow-in-right' if log.action_type == 'login' 
+                                          else 'upload' if log.action_type == 'upload'
+                                          else 'trash' if log.action_type == 'delete'
+                                          else 'info-circle' }} me-2"></i>
+                        {{ log.action_type | capitalize }} - {{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                    </span>
+                    {% if log.file_id %}
+                    <span class="badge bg-primary rounded-pill">File ID: {{ log.file_id }}</span>
+                    {% endif %}
+                </li>
+                {% else %}
+                <li class="list-group-item">No activity records found</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Share File Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="shareForm" method="POST" action="{{ url_for('main.share') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="file_id" id="modalFileId">
+                    <div class="mb-3">
+                        <label class="form-label">Select Users</label>
+                        <select class="form-select" name="users" multiple required
+                                style="height: 150px;">
+                            {% for user in all_users %}
+                                {% if user.user_id != current_user.user_id %}
+                                <option value="{{ user.user_id }}">{{ user.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Permission Level</label>
+                        <select class="form-select" name="permission_level" required>
+                            <option value="read">Read Only</option>
+                            <option value="edit">Can Edit</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Sharing</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Security Scripts -->
+<script>
+// File name validation
+function validateFileName(input) {
+    const forbiddenPatterns = [/\.\.\//, /\/\//, /^\/|\/$/];
+    if (forbiddenPatterns.some(pattern => pattern.test(input.value))) {
+        alert('Invalid file name detected!');
+        input.value = '';
+    }
+}
+
+// Share modal handler
+document.getElementById('shareModal').addEventListener('show.bs.modal', function(event) {
+    const button = event.relatedTarget;
+    const fileId = button.getAttribute('data-file-id');
+    document.getElementById('modalFileId').value = fileId;
+});
+</script>
+{% endblock %}

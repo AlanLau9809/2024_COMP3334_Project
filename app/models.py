@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+# import HMAC_SHA256, PRNG
 
 db = SQLAlchemy()
 
@@ -16,6 +17,10 @@ class User(db.Model, UserMixin):   # 继承 UserMixin
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
+        # salt = PRNG()
+        # key = PRNG()
+        # hash=HMAC_SHA256(key, password + salt)
+        # library_sql.insert(userlist, (username, hash, salt))
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
