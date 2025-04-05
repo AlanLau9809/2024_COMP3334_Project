@@ -42,7 +42,8 @@ CREATE TABLE AuditLog (
     log_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     action_type VARCHAR(50) NOT NULL,         
-    file_id INT DEFAULT NULL,                   
+    file_id INT DEFAULT NULL,  
+    details TEXT,                          -- additional details about the action                 
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
     FOREIGN KEY (file_id) REFERENCES File(file_id) ON DELETE SET NULL

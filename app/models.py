@@ -77,9 +77,10 @@ class FileShare(db.Model):
 class AuditLog(db.Model):
     __tablename__ = 'AuditLog'
     log_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('User.user_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('User.user_id',ondelete='CASCADE'), nullable=False)
     action_type = db.Column(db.String(50), nullable=False)
     file_id = db.Column(db.Integer, db.ForeignKey('File.file_id'))
+    details = db.Column(db.Text, nullable=True) 
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     # 定義關係

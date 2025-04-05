@@ -41,7 +41,7 @@ def register():
         password = request.form['password']
 
         if User.query.filter_by(username=username).first():
-            flash('Username already exists!', 'danger')
+            flash('Username is already taken! Please choose another.', 'danger')
             return redirect(url_for('auth.register'))
 
         new_user = User(username=username)
@@ -49,12 +49,15 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        # 記錄審計日誌
-        log = AuditLog(user_id=new_user.id, action_type='register', details='User registered')
+        log = AuditLog(
+            user_id=new_user.user_id,
+            action_type='register', 
+            details='New user registration'
+        )
         db.session.add(log)
         db.session.commit()
 
-        flash('Registration successful! Please login.', 'success')
+        flash('Account created successfully! You can now login.', 'success')
         return redirect(url_for('auth.login'))
 
     return render_template('register.html')
