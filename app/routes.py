@@ -71,6 +71,11 @@ def register():
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'GET':
+        if current_user.is_authenticated:
+            logout_user()  # 安全终止会话
+            flash('For security reasons, previous session was terminated', 'warning')
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')

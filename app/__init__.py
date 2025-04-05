@@ -7,7 +7,14 @@ login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
-
+    
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,    # HTTPS only
+        SESSION_COOKIE_HTTPONLY=True,  # advoid XSS
+        SESSION_COOKIE_SAMESITE='Lax', # CSRF protection
+        PERMANENT_SESSION_LIFETIME=1800  # 30mins session lifetime
+    )
+    
     # Generate a secure Secret Key
     app.config['SECRET_KEY'] = os.urandom(24)  # Or manually set a complex string
     

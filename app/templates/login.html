@@ -5,6 +5,17 @@
 
 {% block content %}
 <div class="container mt-5">
+    <!--Stop session message-->
+    {% with messages = get_flashed_messages(category_filter=["warning"]) %}
+        {% if messages %}
+            <div class="alert alert-warning alert-dismissible fade show">
+                <i class="bi bi-shield-exclamation me-2"></i>
+                {{ messages[0] }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <div class="card mx-auto" style="max-width: 400px;">
         <div class="card-header bg-primary text-white">
             <h3 class="text-center">Secure Login</h3>
