@@ -37,6 +37,10 @@ def derive_file_key(master_key, salt):
 # Route Implementations
 # -------------------------
 
+# -------------------------
+# Account Management Routes
+# -------------------------
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -105,6 +109,13 @@ def logout():
 # File Handling Utilities
 # -------------------------
 
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'xlsx'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def secure_filename(filename):
     """Prevent path traversal attacks"""
     return os.path.basename(filename).replace('/', '_').replace('\\', '_')
@@ -153,7 +164,12 @@ def decrypt_file_content(encrypted_data, encryption_key):
 
 
 # -------------------------
-# Route Implementations
+# ----------Main-----------
+# -------------------------
+
+
+# -------------------------
+# Main Functionality Routes
 # -------------------------
 
 @main.route('/')
@@ -210,13 +226,6 @@ def profile_settings():
 
 # For security reasons, we limit the maximum file size to 50MB
 # This is to prevent denial of service attacks through large file uploads
-
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'xlsx'}
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @main.route('/upload', methods=['POST'])
@@ -344,35 +353,44 @@ def share():
 @login_required
 def delete(file_id):
     """Secure file deletion endpoint"""
-    file = File.query.filter_by(
-        file_id=file_id,
-        user_id=current_user.user_id
-    ).first_or_404()
-    
-    # Secure deletion process
     try:
-        # Overwrite file content before deletion
-        with open(file.file_path, 'wb') as f:
-            f.write(generate_prng(os.path.getsize(file.file_path)))
-        os.remove(file.file_path)
-    except FileNotFoundError:
-        pass
+        file = File.query.filter_by(
+            file_id=file_id,
+            user_id=current_user.user_id
+        ).first_or_404()
+        
+        filename = file.filename  # 获取文件名用于通知
+        
+        # Secure deletion process
+        try:
+            # Overwrite file content before deletion
+            with open(file.file_path, 'wb') as f:
+                f.write(generate_prng(os.path.getsize(file.file_path)))
+            os.remove(file.file_path)
+        except FileNotFoundError:
+            pass
+        
+        # Delete database records
+        FileShare.query.filter_by(file_id=file_id).delete()
+        db.session.delete(file)
+        
+        # Audit log
+        audit = AuditLog(
+            user_id=current_user.user_id,
+            action_type='delete',
+            file_id=file_id
+        )
+        db.session.add(audit)
+        
+        db.session.commit()
+        
+        flash(f'File "{filename}" has been permanently deleted', 'success')
     
-    # Delete database records
-    FileShare.query.filter_by(file_id=file_id).delete()
-    db.session.delete(file)
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to delete file: {str(e)}', 'danger')
     
-    # Audit log
-    audit = AuditLog(
-        user_id=current_user.user_id,
-        action_type='delete',
-        file_id=file_id
-    )
-    db.session.add(audit)
-    
-    db.session.commit()
-    
-    return 'File permanently deleted', 200
+    return redirect(url_for('main.home'))
 
 @main.route('/download/<int:file_id>')
 @login_required
