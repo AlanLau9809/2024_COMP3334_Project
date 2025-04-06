@@ -216,8 +216,29 @@ def decrypt_file_content(encrypted_data, encryption_key):
 @main.route('/')
 @login_required
 def home():
-    files = File.query.filter_by(user_id=current_user.user_id).all()
-    return render_template('main.html', files=files)
+    # 获取用户自己的文件
+    own_files = File.query.filter_by(user_id=current_user.user_id).all()
+    
+    # 获取共享给当前用户的文件
+    shared_files_query = db.session.query(File).\
+        join(FileShare, File.file_id == FileShare.file_id).\
+        filter(FileShare.shared_with_user_id == current_user.user_id)
+    
+    shared_files = shared_files_query.all()
+    
+    # 获取所有用户列表（用于共享对话框）
+    all_users = User.query.filter(User.user_id != current_user.user_id).all()
+    
+    # 获取最近的审计日志
+    recent_logs = AuditLog.query.filter_by(user_id=current_user.user_id).\
+        order_by(AuditLog.timestamp.desc()).limit(10).all()
+    
+    return render_template('main.html', 
+                          files=own_files, 
+                          shared_files=shared_files,
+                          all_users=all_users,
+                          activity_logs=recent_logs)
+
 
 # Route for setting profile settings, including password change
 @main.route('/profile/settings', methods=['GET', 'POST'])
@@ -354,38 +375,63 @@ def upload():
 def share():
     """Secure file sharing endpoint"""
     file_id = request.form.get('file_id')
-    target_user_id = request.form.get('user_id')
-    permission = request.form.get('permission', 'read')
+    target_users = request.form.getlist('users')  # 获取选中的用户ID列表
+    permission = request.form.get('permission_level', 'read')
     
-    # Validate ownership
+    if not file_id or not target_users:
+        flash('Missing required information for sharing', 'danger')
+        return redirect(url_for('main.home'))
+    
+    # 验证文件所有权
     file = File.query.filter_by(
         file_id=file_id,
         user_id=current_user.user_id
     ).first_or_404()
     
-    # Validate target user
-    target_user = User.query.get_or_404(target_user_id)
+    success_count = 0
     
-    # Create share record
-    share = FileShare(
-        file_id=file.file_id,
-        shared_with_user_id=target_user.user_id,
-        permission_level=permission,
-        shared_key=hmac_sha256(file.encrypted_key, file.file_salt)  # Derive share-specific key
-    )
-    db.session.add(share)
+    for user_id in target_users:
+        # 检查用户是否存在
+        target_user = User.query.get(user_id)
+        if not target_user:
+            continue
+            
+        # 检查是否已经共享给该用户
+        existing_share = FileShare.query.filter_by(
+            file_id=file_id,
+            shared_with_user_id=user_id
+        ).first()
+        
+        if existing_share:
+            # 更新现有共享的权限
+            existing_share.permission_level = permission
+        else:
+            # 创建新的共享记录
+            share = FileShare(
+                file_id=file.file_id,
+                shared_with_user_id=user_id,
+                permission_level=permission
+            )
+            db.session.add(share)
+        
+        success_count += 1
     
-    # Audit log
-    audit = AuditLog(
-        user_id=current_user.user_id,
-        action_type='share',
-        file_id=file.file_id
-    )
-    db.session.add(audit)
+    if success_count > 0:
+        # 添加审计日志
+        audit = AuditLog(
+            user_id=current_user.user_id,
+            action_type='share',
+            file_id=file.file_id,
+            details=f'Shared file with {success_count} users'
+        )
+        db.session.add(audit)
+        db.session.commit()
+        
+        flash(f'File successfully shared with {success_count} users', 'success')
+    else:
+        flash('No users were selected or sharing failed', 'warning')
     
-    db.session.commit()
-    
-    return 'File shared successfully', 200
+    return redirect(url_for('main.home'))
 
 @main.route('/delete/<int:file_id>', methods=['POST'])
 @login_required
@@ -428,7 +474,9 @@ def download(file_id):
     file = File.query.filter_by(file_id=file_id).first_or_404()
     
     # 验证权限（文件所有者或共享用户）
-    if file.user_id != current_user.user_id:
+    is_owner = file.user_id == current_user.user_id
+    
+    if not is_owner:
         # 检查是否有共享权限
         share = FileShare.query.filter_by(
             file_id=file_id, 

@@ -129,6 +129,50 @@
         </div>
     </div>
 
+    <!-- File Sharing Modal -->
+    <div class="card mb-4 shadow">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0"><i class="bi bi-share me-2"></i>Files Shared With You</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col">Filename</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Shared By</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in shared_files %}
+                        <tr>
+                            <td>{{ file.filename }}</td>
+                            <td>{{ file.file_size|filesizeformat }}</td>
+                            <td>{{ file.owner.username }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('main.download', file_id=file.file_id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                       <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center">No shared files found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    
+
     <!-- Activity Log Section -->
     <div class="card shadow">
         <div class="card-header bg-secondary text-white">
@@ -173,23 +217,22 @@
                         <select class="form-select" name="users" multiple required
                                 style="height: 150px;">
                             {% for user in all_users %}
-                                {% if user.user_id != current_user.user_id %}
                                 <option value="{{ user.user_id }}">{{ user.username }}</option>
-                                {% endif %}
                             {% endfor %}
                         </select>
+                        <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple users</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Permission Level</label>
                         <select class="form-select" name="permission_level" required>
-                            <option value="read">Read Only</option>
-                            <option value="edit">Can Edit</option>
+                            <option value="read" selected>Read Only</option>
+                            <!-- 只有上传者才能修改，所以这里只提供读取权限 -->
                         </select>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Save Sharing</button>
+                    <button type="submit" class="btn btn-primary">Share</button>
                 </div>
             </form>
         </div>
