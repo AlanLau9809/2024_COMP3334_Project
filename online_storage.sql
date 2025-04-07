@@ -62,9 +62,9 @@ CREATE INDEX idx_shares_file ON FileShare(file_id);
 CREATE INDEX idx_audit_user ON AuditLog(user_id);
 
 -- Insert admin user
--- Note: This uses a pre-hashed password for 'Admin@123'
+-- Note: This uses a pre-hashed password for '123'
 INSERT INTO User (username, email, password_hash, is_admin, created_at) 
-VALUES ('admin', 'admin@admin.com', 'pbkdf2:sha256:260000$xGKVnrUcJWOQDwRi$627f97c7c724dc57f1f0996b9e3a1a9c4fe2a5e512a8ff3d9d022b0e646c0a0e', 1, CURRENT_TIMESTAMP);
+VALUES ('admin', 'admin@admin.com', 'scrypt:32768:8:1$ePaVRqlMtWYtlqY4$a99fd8bb9ac9d2b1b8db9f377fe05a95fc874425bf5030ffaa9e430d82e4486ed7a3f222720a914f1d66e4e3959b857129d2a6e68e8bf297de8e2576e263cb2f', 1, CURRENT_TIMESTAMP);
 
 -- Add audit log for admin creation
 INSERT INTO AuditLog (user_id, action_type, details, timestamp)

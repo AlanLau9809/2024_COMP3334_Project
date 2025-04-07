@@ -33,6 +33,9 @@ class User(db.Model, UserMixin):   # 继承 UserMixin
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    @property
+    def is_administrator(self):
+        return self.is_admin == 1
     
     @property
     def is_authenticated(self):

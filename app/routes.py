@@ -4,11 +4,10 @@ import random
 import string
 from flask import Blueprint, jsonify, render_template, redirect, request,session, url_for, flash,send_file, abort, current_app
 from flask_mail import Message
+from sqlalchemy import asc, desc
 from app import db, login_manager, mail
 from flask_login import login_user, logout_user, login_required, current_user
-import os
-import hmac
-import hashlib
+import os,hmac,hashlib
 from secrets import token_bytes
 from app.models import File, FileShare, AuditLog, User, db
 
@@ -23,7 +22,7 @@ auth = Blueprint('auth', __name__)
 main = Blueprint('main', __name__)
 
 # -------------------------
-# Cryptographic Primitives (Revised)
+# Cryptographic Primitives
 # -------------------------
 
 def generate_prng(length=32) -> bytes:
@@ -324,6 +323,111 @@ def home():
                           activity_logs=recent_logs)
 
 
+#--------------------------
+#---------Admin------------
+#--------------------------
+@main.route('/admin/logs')
+@login_required
+def admin_logs():
+    # Check if user is admin
+    if not current_user.is_administrator:
+        abort(403, "You don't have permission to access this page")
+    
+    # Get query parameters for filtering and sorting
+    page = request.args.get('page', 1, type=int)
+    per_page = 20  # Logs per page
+    
+    username = request.args.get('username', '')
+    action_type = request.args.get('action_type', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    sort = request.args.get('sort', 'timestamp')
+    order = request.args.get('order', 'desc')
+    
+    # Build the query
+    query = db.session.query(AuditLog).join(User, AuditLog.user_id == User.user_id)
+    
+    # Apply filters
+    if username:
+        query = query.filter(User.username.like(f'%{username}%'))
+    
+    if action_type:
+        query = query.filter(AuditLog.action_type == action_type)
+    
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(AuditLog.timestamp >= from_date)
+        except ValueError:
+            pass
+    
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d')
+            # Add one day to include the end date
+            to_date = to_date.replace(hour=23, minute=59, second=59)
+            query = query.filter(AuditLog.timestamp <= to_date)
+        except ValueError:
+            pass
+    
+    # Apply sorting
+    if sort == 'username':
+        if order == 'asc':
+            query = query.order_by(asc(User.username))
+        else:
+            query = query.order_by(desc(User.username))
+    elif sort == 'action_type':
+        if order == 'asc':
+            query = query.order_by(asc(AuditLog.action_type))
+        else:
+            query = query.order_by(desc(AuditLog.action_type))
+    elif sort == 'log_id':
+        if order == 'asc':
+            query = query.order_by(asc(AuditLog.log_id))
+        else:
+            query = query.order_by(desc(AuditLog.log_id))
+    else:  # Default sort by timestamp
+        if order == 'asc':
+            query = query.order_by(asc(AuditLog.timestamp))
+        else:
+            query = query.order_by(desc(AuditLog.timestamp))
+    
+    # Paginate the results
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    logs = pagination.items
+    total_pages = pagination.pages
+    
+    # Prepare parameters for template
+    next_order = 'asc' if order == 'desc' else 'desc'
+    
+    # Filter parameters for pagination links
+    filter_params = {}
+    if username:
+        filter_params['username'] = username
+    if action_type:
+        filter_params['action_type'] = action_type
+    if date_from:
+        filter_params['date_from'] = date_from
+    if date_to:
+        filter_params['date_to'] = date_to
+    
+    return render_template(
+        'admin_logs.html',
+        logs=logs,
+        page=page,
+        total_pages=total_pages,
+        sort=sort,
+        order=order,
+        next_order=next_order,
+        filter_params=filter_params
+    )
+    
+
+
+#--------------------------
+#-----------User-----------
+#--------------------------
 # Route for setting profile settings, including password change
 @main.route('/profile/settings', methods=['GET', 'POST'])
 @login_required
