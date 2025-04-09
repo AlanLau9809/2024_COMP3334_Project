@@ -1,11 +1,48 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+import os
+import hashlib
+from datetime import datetime
 
 # TODO: implement HMAC_SHA256 and PRNG because the project required.
-# import HMAC_SHA256, PRNG
+# EXAMPLE: import HMAC_SHA256, PRNG
 
 db = SQLAlchemy()
+
+# Cryptographic Primitives (copied from routes.py for consistency)
+def generate_prng(length=32) -> bytes:
+    """Generate cryptographically secure random bytes
+    Args:
+        length: Number of bytes to generate (default 32)
+    Returns:
+        Random bytes string
+    """
+    return os.urandom(length)
+
+def hmac_sha256(key: bytes, data: bytes) -> bytes:
+    """HMAC-SHA256 implementation
+    Args:
+        key: Secret key (recommended 32 bytes)
+        data: Data to authenticate
+    Returns:
+        32-byte HMAC digest
+    """
+    block_size = 64  # SHA-256 block size
+    ipad = 0x36
+    opad = 0x5C
+    
+    # Key processing
+    if len(key) > block_size:
+        key = hashlib.sha256(key).digest()
+    key = key.ljust(block_size, b'\x00')
+    
+    # Inner padding
+    i_key_pad = bytes([b ^ ipad for b in key])
+    inner_hash = hashlib.sha256(i_key_pad + data).digest()
+    
+    # Outer padding
+    o_key_pad = bytes([b ^ opad for b in key])
+    return hashlib.sha256(o_key_pad + inner_hash).digest()
 
 # users table
 class User(db.Model, UserMixin):   # 继承 UserMixin
@@ -13,6 +50,7 @@ class User(db.Model, UserMixin):   # 继承 UserMixin
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    salt = db.Column(db.String(255), nullable=True)  # Add salt column to store the salt
     email = db.Column(db.String(120), unique=True, nullable=False)
     otp = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
@@ -23,16 +61,42 @@ class User(db.Model, UserMixin):   # 继承 UserMixin
     files = db.relationship('File', backref='owner', foreign_keys='File.user_id')
     
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        """Set password using HMAC-SHA256 and PRNG"""
+            
+        # Generate a random salt
+        salt = generate_prng(32)
         
-        # TODO: implement encryption password with HMAC_SHA256 and PRNG
-        # salt = PRNG()
-        # key = PRNG()
-        # hash=HMAC_SHA256(key, password + salt)
-        # library_sql.insert(userlist, (username, hash, salt))
+        # Generate a key for HMAC
+        key = generate_prng(32)
+        
+        # Create password hash using HMAC-SHA256
+        password_bytes = password.encode('utf-8')
+        hash_value = hmac_sha256(key, password_bytes + salt)
+        
+        # Store the salt, key, and hash in the database
+        # Format: key:salt:hash (all hex encoded)
+        self.salt = salt
+        self.password_hash = key.hex() + ':' + salt.hex() + ':' + hash_value.hex()
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        """Verify password using HMAC-SHA256"""
+        if not self.password_hash:
+            return False
+        
+        # Split the stored hash into key, salt, and hash
+        key_hex, salt_hex, stored_hash_hex = self.password_hash.split(':')
+        
+        # Convert hex strings back to bytes
+        key = bytes.fromhex(key_hex)
+        salt = bytes.fromhex(salt_hex)
+        stored_hash = bytes.fromhex(stored_hash_hex)
+        
+        # Verify the password
+        password_bytes = password.encode('utf-8')
+        hash_value = hmac_sha256(key, password_bytes + salt)
+        
+        return hash_value == stored_hash
+
     @property
     def is_administrator(self):
         return self.is_admin == 1
@@ -51,7 +115,6 @@ class User(db.Model, UserMixin):   # 继承 UserMixin
     
     def get_id(self):
         return str(self.user_id)  # make sure to return a string for user_id, as required by Flask-Login
-
 
 class File(db.Model):
     __tablename__ = 'File'  # Change to uppercase to match SQL schema
