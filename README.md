@@ -64,7 +64,7 @@ UPDATE user SET is_admin = 1 WHERE username = 'your_username';
 ### Method 2: Use Pre-configured Admin (Recommended for Initial Setup)
 A default admin account is included in the database schema:
 - Username: admin
-- Password: admin
+- Password: 123
 - Security Note:
     - Change the password immediately after first login
     - This account should only be used for initial setup

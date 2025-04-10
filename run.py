@@ -17,7 +17,7 @@ login_manager.login_view = 'auth.login'  # when user is not logged in, redirect 
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Flask-Login 所需的用戶加載函數"""
+    """Flask-Login user loader callback."""
     return User.query.get(int(user_id))
 
 # CLI command to create database tables
