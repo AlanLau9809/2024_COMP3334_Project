@@ -38,7 +38,6 @@ def create_app():
     
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    
     # Initialize the extension
     db.init_app(app)
     login_manager.init_app(app)

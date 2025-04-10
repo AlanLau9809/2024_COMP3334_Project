@@ -4,12 +4,9 @@ import os
 import hashlib
 from datetime import datetime
 
-# TODO: implement HMAC_SHA256 and PRNG because the project required.
-# EXAMPLE: import HMAC_SHA256, PRNG
-
 db = SQLAlchemy()
 
-# Cryptographic Primitives (copied from routes.py for consistency)
+# Define encrytion tools
 def generate_prng(length=32) -> bytes:
     """Generate cryptographically secure random bytes
     Args:
@@ -45,7 +42,7 @@ def hmac_sha256(key: bytes, data: bytes) -> bytes:
     return hashlib.sha256(o_key_pad + inner_hash).digest()
 
 # users table
-class User(db.Model, UserMixin):   # 继承 UserMixin
+class User(db.Model, UserMixin):
     __tablename__ = 'User'
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
@@ -125,15 +122,15 @@ class File(db.Model):
         nullable=False
     )
     filename = db.Column(db.String(255), nullable=False)
-    encrypted_content = db.Column(db.LargeBinary, nullable=False)  # 新增字段
+    encrypted_content = db.Column(db.LargeBinary, nullable=False)  
     encrypted_key = db.Column(db.LargeBinary, nullable=False)
     file_salt = db.Column(db.LargeBinary, nullable=False)
     master_salt = db.Column(db.LargeBinary, nullable=False)
-    iv = db.Column(db.LargeBinary, nullable=False)  # 存储IV
+    iv = db.Column(db.LargeBinary, nullable=False)  
     file_size = db.Column(db.Integer, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-# file share table (for sharing files with other users)
 
+# file share table (for sharing files with other users)
 class FileShare(db.Model):
     __tablename__ = 'FileShare'
     share_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -141,7 +138,7 @@ class FileShare(db.Model):
     shared_with_user_id = db.Column(db.Integer, db.ForeignKey('User.user_id', ondelete='CASCADE'), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    # 定义关系
+    # Define relationships
     file = db.relationship('File', backref='shares')
     shared_user = db.relationship('User', backref='shared_files')
 
@@ -155,6 +152,6 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True) 
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    # 定義關係
+    # Defun relationships
     user = db.relationship('User', backref='audit_logs')
     file = db.relationship('File', backref='related_logs')

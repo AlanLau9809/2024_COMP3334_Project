@@ -22,11 +22,11 @@ auth = Blueprint('auth', __name__)
 main = Blueprint('main', __name__)
 
 # -------------------------
-# Cryptographic Primitives
+# Encryption/Decryption Tools
 # -------------------------
 
 def generate_prng(length=32) -> bytes:
-    """Generate cryptographically secure random bytes
+    """Generate random bytes
     Args:
         length: Number of bytes to generate (default 32)
     Returns:
@@ -35,7 +35,7 @@ def generate_prng(length=32) -> bytes:
     return os.urandom(length)
 
 def hmac_sha256(key: bytes, data: bytes) -> bytes:
-    """HMAC-SHA256 implementation from scratch
+    """HMAC-SHA256 implementation from scratch (NOT using AIO libraries)
     Args:
         key: Secret key (recommended 32 bytes)
         data: Data to authenticate
@@ -69,9 +69,10 @@ def derive_file_key(master_key: bytes, salt: bytes) -> bytes:
     """
     return hmac_sha256(master_key, salt)
 
-# -------------------------
-# Route Implementations
-# -------------------------
+# +-----------------------+
+# --ROUTE Implementations--
+# +-----------------------+
+
 
 # -------------------------
 # Account Management Routes
@@ -90,18 +91,18 @@ def send_otp():
     if not email or not username:
         return jsonify({'success': False, 'message': 'Email and username are required'})
     
-    # 验证用户名和邮箱是否已存在
+    # Checking if the username is already taken
     if User.query.filter_by(username=username).first():
         return jsonify({'success': False, 'message': 'Username is already taken'})
     
     if User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'Email is already registered'})
     
-    # 生成OTP
+    # Generate OTP
     otp = ''.join(random.choices(string.digits, k=6))
     otp_expiry = datetime.now() + timedelta(minutes=10)
     
-    # 将OTP存储在会话中
+    # Store OTP in session for verification
     session['registration_otp'] = {
         'email': email,
         'username': username,
@@ -109,7 +110,7 @@ def send_otp():
         'expiry': otp_expiry.timestamp()
     }
     
-    # 发送OTP邮件
+    # Send OTP via email
     try:
         msg = Message(
             'Your OTP Verification Code',
@@ -132,21 +133,22 @@ def register():
         confirm_password = request.form.get('confirm_password')
         otp = request.form.get('otp')
         
-        # 验证密码是否匹配
+        # Checking and confirm password match
         if password != confirm_password:
             flash('Passwords do not match', 'danger')
             return render_template('register.html', username=username, email=email)
         
-        # 验证用户名和邮箱是否已存在
+        # Checking if the username is already taken
         if User.query.filter_by(username=username).first():
             flash('Username is already taken', 'danger')
             return render_template('register.html', username='', email=email)
         
+        # Checking if the email is already registered
         if User.query.filter_by(email=email).first():
             flash('Email is already registered', 'danger')
             return render_template('register.html', username=username, email='')
         
-        # 验证OTP
+        # Checking OTP validity
         registration_otp = session.get('registration_otp', {})
         stored_otp = registration_otp.get('otp')
         stored_email = registration_otp.get('email')
@@ -165,14 +167,14 @@ def register():
             flash('Invalid verification code', 'danger')
             return render_template('register.html', username=username, email=email)
         
-        # 创建新用户
+        # Creating a new user
         new_user = User(username=username, email=email)
         new_user.set_password(password)
         
         db.session.add(new_user)
         db.session.commit()
         
-        # 添加审计日志
+        # Logging the registration event
         log = AuditLog(
             user_id=new_user.user_id,
             action_type='register',
@@ -181,7 +183,7 @@ def register():
         db.session.add(log)
         db.session.commit()
         
-        # 清除会话中的OTP数据
+        # Clearing the OTP session data
         session.pop('registration_otp', None)
         
         flash('Account created successfully! You can now login.', 'success')
@@ -193,7 +195,7 @@ def register():
 def login():
     if request.method == 'GET':
         if current_user.is_authenticated:
-            logout_user()  # 安全终止会话
+            logout_user()  # Logout the user if they're already logged in
             flash('For security reasons, previous session was terminated', 'warning')
     
     if request.method == 'POST':
@@ -222,7 +224,7 @@ def logout():
 
 
 # -------------------------
-# File Encryption/Decryption (Revised)
+# File Encryption/Decryption
 # -------------------------
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
@@ -240,7 +242,6 @@ def encrypt_file_content(raw_data, encryption_key):
     """AES-256 CBC encryption with proper IV handling"""
     iv = generate_prng(16)
     
-    # 使用自己实现的AES加密，而不是库函数
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.backends import default_backend
     
@@ -257,12 +258,12 @@ def encrypt_file_content(raw_data, encryption_key):
     encryptor = cipher.encryptor()
     ciphertext = encryptor.update(padded_data) + encryptor.finalize()
     
-    # 返回IV + 密文，确保IV可以被正确提取
+    # Concatenate IV and ciphertext
     return iv + ciphertext
 
 def decrypt_file_content(encrypted_data, encryption_key):
     """AES-256 CBC decryption with validation"""
-    # 提取IV（前16字节）
+    # Extract IV and ciphertext (first 16 bytes are IV)
     iv = encrypted_data[:16]
     ciphertext = encrypted_data[16:]
     
@@ -278,7 +279,7 @@ def decrypt_file_content(encrypted_data, encryption_key):
     decryptor = cipher.decryptor()
     padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
     
-    # 验证并移除PKCS7填充
+    # PKCS7 unpadding
     pad_len = padded_plaintext[-1]
     if not (1 <= pad_len <= 16):
         raise ValueError("Invalid padding length")
@@ -286,6 +287,7 @@ def decrypt_file_content(encrypted_data, encryption_key):
         raise ValueError("Invalid padding bytes")
     
     return padded_plaintext[:-pad_len]
+
 
 # -------------------------
 # ----------Main-----------
@@ -299,20 +301,20 @@ def decrypt_file_content(encrypted_data, encryption_key):
 @main.route('/')
 @login_required
 def home():
-    # 获取用户自己的文件
+    # Get the list of files owned by the current user
     own_files = File.query.filter_by(user_id=current_user.user_id).all()
     
-    # 获取共享给当前用户的文件
+    # Get the list of files shared with the current user
     shared_files_query = db.session.query(File).\
         join(FileShare, File.file_id == FileShare.file_id).\
         filter(FileShare.shared_with_user_id == current_user.user_id)
     
     shared_files = shared_files_query.all()
     
-    # 获取所有用户列表（用于共享对话框）
+    # Get all users except the current user
     all_users = User.query.filter(User.user_id != current_user.user_id).all()
     
-    # 获取最近的审计日志
+    # Get the 10 most recent logs for the current user
     recent_logs = AuditLog.query.filter_by(user_id=current_user.user_id).\
         order_by(AuditLog.timestamp.desc()).limit(10).all()
     
@@ -424,7 +426,6 @@ def admin_logs():
     )
     
 
-
 #--------------------------
 #-----------User-----------
 #--------------------------
@@ -492,12 +493,12 @@ def upload():
         return redirect(url_for('main.home'))
     
     try:
-        # 安全文件名处理
+        # Check file size
         filename = secure_filename(file.filename)
         if not filename:
             raise ValueError("Invalid filename")
         
-        # 文件验证
+        # Check file type
         if not allowed_file(filename):
             raise InvalidFileType()
         
@@ -507,25 +508,25 @@ def upload():
             raise FileSizeExceeded()
         file.seek(0)
         
-        # 加密流程
+        # Read the file content
         raw_data = file.read()
         
-        # 生成加密材料
+        # Generate keys and salts
         master_salt = generate_prng(32)
         master_key = generate_prng(32)
         file_salt = generate_prng(32)
         file_key = derive_file_key(master_key, file_salt)
         
-        # 加密文件
+        # Encrypt the file content
         encrypted_data = encrypt_file_content(raw_data, file_key)
-        iv = encrypted_data[:16]  # 提取IV用于存储
+        iv = encrypted_data[:16]  # 16 bytes for AES
         
-        # 数据库存储
+        # Create a new file record in the database
         new_file = File(
             user_id=current_user.user_id,
             filename=filename,
-            encrypted_content=encrypted_data,  # 存储完整的加密数据（包含IV）
-            encrypted_key=master_key,  # 直接存储主密钥，或者使用hmac_sha256加密
+            encrypted_content=encrypted_data,  # Record the encrypted content (iv + encrypted_data)
+            encrypted_key=master_key,  # Record the master key
             file_salt=file_salt,
             master_salt=master_salt,
             iv=iv,
@@ -534,7 +535,7 @@ def upload():
         
         db.session.add(new_file)
         
-        # 添加审计日志
+        # Log the upload event
         log = AuditLog(
             user_id=current_user.user_id,
             action_type='upload',
@@ -563,14 +564,14 @@ def upload():
 def share():
     """Secure file sharing endpoint"""
     file_id = request.form.get('file_id')
-    target_users = request.form.getlist('users')  # 获取选中的用户ID列表
+    target_users = request.form.getlist('users')  # Get a list of user IDs
     permission = request.form.get('permission_level', 'read')
     
     if not file_id or not target_users:
         flash('Missing required information for sharing', 'danger')
         return redirect(url_for('main.home'))
     
-    # 验证文件所有权
+    # Fetch the file from the database
     file = File.query.filter_by(
         file_id=file_id,
         user_id=current_user.user_id
@@ -580,12 +581,12 @@ def share():
     already_shared_count = 0
     
     for user_id in target_users:
-        # 检查用户是否存在
+        # Check if the target user exists
         target_user = User.query.get(user_id)
         if not target_user:
             continue
             
-        # 检查是否已经共享给该用户
+        # Check if the file is already shared with this user
         existing_share = FileShare.query.filter_by(
             file_id=file_id,
             shared_with_user_id=user_id
@@ -595,7 +596,7 @@ def share():
             # File is already shared with this user
             already_shared_count += 1
         else:
-            # 创建新的共享记录
+            # Create a new share record
             share = FileShare(
                 file_id=file.file_id,
                 shared_with_user_id=user_id,
@@ -605,7 +606,7 @@ def share():
         success_count += 1
     
     if success_count > 0:
-        # 添加审计日志
+        # Log the share event
         audit = AuditLog(
             user_id=current_user.user_id,
             action_type='share',
@@ -637,7 +638,7 @@ def delete(file_id):
             user_id=current_user.user_id
         ).first_or_404()
         
-        filename = file.filename  # 获取文件名用于通知
+        filename = file.filename  # Get the filename
         
         # Delete database records
         FileShare.query.filter_by(file_id=file_id).delete()
@@ -664,14 +665,14 @@ def delete(file_id):
 @main.route('/download/<int:file_id>')
 @login_required
 def download(file_id):
-    # 获取文件记录
+    # Get the file from the database
     file = File.query.filter_by(file_id=file_id).first_or_404()
     
-    # 验证权限（文件所有者或共享用户）
+    # Check if the user is the owner of the file 
     is_owner = file.user_id == current_user.user_id
     
     if not is_owner:
-        # 检查是否有共享权限
+        # Check if the user has permission to access the file
         share = FileShare.query.filter_by(
             file_id=file_id, 
             shared_with_user_id=current_user.user_id
@@ -681,14 +682,14 @@ def download(file_id):
             abort(403, description="You don't have permission to access this file")
     
     try:
-        # 密钥派生 - 确保与上传时使用相同的方法
+        # Derive the file key from the user's master key and file salt
         file_key = derive_file_key(file.encrypted_key, file.file_salt)
         
-        # 解密流程
+        # Decrypt the file content
         encrypted_data = file.encrypted_content
         decrypted_data = decrypt_file_content(encrypted_data, file_key)
         
-        # 记录下载操作
+        # Log the download event
         log = AuditLog(
             user_id=current_user.user_id,
             action_type='download',
@@ -698,7 +699,7 @@ def download(file_id):
         db.session.add(log)
         db.session.commit()
         
-        # 发送文件
+        # Return the decrypted file as a download
         return send_file(
             io.BytesIO(decrypted_data),
             download_name=file.filename,
@@ -715,16 +716,16 @@ def download(file_id):
 @main.route('/edit/<int:file_id>', methods=['GET', 'POST'])
 @login_required
 def edit_file(file_id):
-    """允许文件所有者编辑文件内容"""
-    # 获取文件并验证所有权
+    """Allowws users to edit files online"""
+    # Get the file from the database
     file = File.query.filter_by(file_id=file_id).first_or_404()
     
-    # 只有文件所有者可以编辑
+    # Check if the user is the owner of the file
     if file.user_id != current_user.user_id:
         flash('You do not have permission to edit this file', 'danger')
         return redirect(url_for('main.home'))
     
-    # 检查文件类型是否可编辑
+    # Check if the file extension is editable
     editable_extensions = {'txt', 'md', 'html', 'css', 'js', 'json', 'xml', 'csv'}
     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     
@@ -733,12 +734,12 @@ def edit_file(file_id):
         return redirect(url_for('main.home'))
     
     try:
-        # 解密文件内容
+        # Derive the file key from the user's master key and file salt
         file_key = derive_file_key(file.encrypted_key, file.file_salt)
         encrypted_data = file.encrypted_content
         decrypted_data = decrypt_file_content(encrypted_data, file_key)
         
-        # 尝试将二进制内容转换为文本
+        # Decrypt the file content
         try:
             file_content = decrypted_data.decode('utf-8')
         except UnicodeDecodeError:
@@ -746,18 +747,18 @@ def edit_file(file_id):
             return redirect(url_for('main.home'))
         
         if request.method == 'POST':
-            # 获取编辑后的内容
+            # Get the new content from the form
             new_content = request.form.get('content', '')
             
-            # 加密新内容
+            # Encrypt the new content
             raw_data = new_content.encode('utf-8')
             encrypted_data = encrypt_file_content(raw_data, file_key)
             
-            # 更新文件记录
+            # Update the file in the database
             file.encrypted_content = encrypted_data
             file.file_size = len(raw_data)
             
-            # 添加审计日志
+            # Audit log
             log = AuditLog(
                 user_id=current_user.user_id,
                 action_type='edit',
@@ -770,7 +771,7 @@ def edit_file(file_id):
             flash(f'File "{file.filename}" has been updated', 'success')
             return redirect(url_for('main.home'))
         
-        # GET 请求 - 显示编辑表单
+        # Render the edit form
         return render_template('edit_file.html', file=file, content=file_content)
     
     except Exception as e:
@@ -781,14 +782,14 @@ def edit_file(file_id):
 @login_required
 def view_file(file_id):
     """允许用户查看文件内容（不编辑）"""
-    # 获取文件
+    # Get the file from the database
     file = File.query.filter_by(file_id=file_id).first_or_404()
     
-    # 验证权限（文件所有者或共享用户）
+    # Check if the user is the owner of the file
     is_owner = file.user_id == current_user.user_id
     
     if not is_owner:
-        # 检查是否有共享权限
+        # Check if the user has permission to access the file
         share = FileShare.query.filter_by(
             file_id=file_id, 
             shared_with_user_id=current_user.user_id
@@ -797,7 +798,7 @@ def view_file(file_id):
         if not share:
             abort(403, description="You don't have permission to access this file")
     
-    # 检查文件类型是否可查看
+    # Check if the file extension is viewable
     viewable_extensions = {'txt', 'md', 'html', 'css', 'js', 'json', 'xml', 'csv'}
     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     
@@ -806,19 +807,19 @@ def view_file(file_id):
         return redirect(url_for('main.home'))
     
     try:
-        # 解密文件内容
+        # Derive the file key from the user's master key and file salt
         file_key = derive_file_key(file.encrypted_key, file.file_salt)
         encrypted_data = file.encrypted_content
         decrypted_data = decrypt_file_content(encrypted_data, file_key)
         
-        # 尝试将二进制内容转换为文本
+        # Decrypt the file content
         try:
             file_content = decrypted_data.decode('utf-8')
         except UnicodeDecodeError:
             flash('This file contains binary data and cannot be viewed online', 'warning')
             return redirect(url_for('main.home'))
         
-        # 记录查看操作
+        # Audit log
         log = AuditLog(
             user_id=current_user.user_id,
             action_type='view',
@@ -828,7 +829,7 @@ def view_file(file_id):
         db.session.add(log)
         db.session.commit()
         
-        # 显示文件内容
+        # Render the view file template
         return render_template('view_file.html', file=file, content=file_content, is_owner=is_owner)
     
     except Exception as e:

@@ -62,6 +62,7 @@ CREATE INDEX idx_audit_user ON AuditLog(user_id);
 
 -- Insert admin user
 -- Note: This uses a pre-hashed password for 'admin'
+-- username: admin, password: 123
 INSERT INTO User (username, email, password_hash, salt, is_admin, created_at) 
 VALUES ('admin', 'admin@admin.com', '6a2741f1fe5609c8abc58d43936c7b9e017fa41c8e1bf2ba474aa7e3e07e784b:33b2f46fb4ecbc4a21ab6412e90c2db07e745cb304cf7d6c1d2139cdb48419a0:c75eda0e6b184526d98de675bfba44d479c3425a0e667c9bc4ebee3764acc35d','3??o???J!?d?-?~t\??}l!9ʹ??' , 1, CURRENT_TIMESTAMP);
 
