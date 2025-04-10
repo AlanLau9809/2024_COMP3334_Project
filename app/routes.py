@@ -781,7 +781,7 @@ def edit_file(file_id):
 @main.route('/view/<int:file_id>')
 @login_required
 def view_file(file_id):
-    """允许用户查看文件内容（不编辑）"""
+    """Allows users to view files online (NOT EDITABLE)"""
     # Get the file from the database
     file = File.query.filter_by(file_id=file_id).first_or_404()
     
