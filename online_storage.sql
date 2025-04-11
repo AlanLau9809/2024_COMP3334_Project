@@ -26,7 +26,6 @@ CREATE TABLE File (
     file_salt BLOB NOT NULL,      -- 32-byte random
     master_salt BLOB NOT NULL,    -- 32-byte random
     iv BLOB NOT NULL,             -- 16-byte initialization vector
-
     file_size BIGINT NOT NULL,    -- Original file size in bytes
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE

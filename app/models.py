@@ -152,6 +152,6 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True) 
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    # Defun relationships
+    # Define relationships
     user = db.relationship('User', backref='audit_logs')
     file = db.relationship('File', backref='related_logs')

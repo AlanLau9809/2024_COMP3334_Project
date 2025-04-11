@@ -648,7 +648,8 @@ def delete(file_id):
         audit = AuditLog(
             user_id=current_user.user_id,
             action_type='delete',
-            file_id=file_id
+            file_id=file_id,
+            details=f'Deleted file: {filename}'
         )
         db.session.add(audit)
         
