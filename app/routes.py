@@ -28,7 +28,7 @@ main = Blueprint('main', __name__)
 def generate_prng(length=32) -> bytes:
     """Generate random bytes
     Args:
-        length: Number of bytes to generate (default 32)
+        length: Number of bytes to generate (32)
     Returns:
         Random bytes string
     """
@@ -37,7 +37,7 @@ def generate_prng(length=32) -> bytes:
 def hmac_sha256(key: bytes, data: bytes) -> bytes:
     """HMAC-SHA256 implementation from scratch (NOT using AIO libraries)
     Args:
-        key: Secret key (recommended 32 bytes)
+        key: Secret key (32 bytes)
         data: Data to authenticate
     Returns:
         32-byte HMAC digest
@@ -228,7 +228,7 @@ def logout():
 # -------------------------
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'xlsx'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'xlsx', 'pptx', 'jpg', 'png', 'gif', 'mp4', 'mp3', 'wav', 'zip', 'rar', '7z'}
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -727,7 +727,7 @@ def edit_file(file_id):
         return redirect(url_for('main.home'))
     
     # Check if the file extension is editable
-    editable_extensions = {'txt', 'md', 'html', 'css', 'js', 'json', 'xml', 'csv'}
+    editable_extensions = {'txt'}
     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     
     if file_ext not in editable_extensions:
@@ -800,7 +800,7 @@ def view_file(file_id):
             abort(403, description="You don't have permission to access this file")
     
     # Check if the file extension is viewable
-    viewable_extensions = {'txt', 'md', 'html', 'css', 'js', 'json', 'xml', 'csv'}
+    viewable_extensions = {'txt'}
     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     
     if file_ext not in viewable_extensions:

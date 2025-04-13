@@ -10,7 +10,7 @@ db = SQLAlchemy()
 def generate_prng(length=32) -> bytes:
     """Generate cryptographically secure random bytes
     Args:
-        length: Number of bytes to generate (default 32)
+        length: Number of bytes to generate (32)
     Returns:
         Random bytes string
     """
@@ -19,7 +19,7 @@ def generate_prng(length=32) -> bytes:
 def hmac_sha256(key: bytes, data: bytes) -> bytes:
     """HMAC-SHA256 implementation
     Args:
-        key: Secret key (recommended 32 bytes)
+        key: Secret key (32 bytes)
         data: Data to authenticate
     Returns:
         32-byte HMAC digest
