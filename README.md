@@ -1,5 +1,5 @@
-# COMP3334 - Computer Systems Security Group Project (2024)
-## Secure Online Storage System with Client-Side Encryption
+# Secure Online Storage System with Client-Side Encryption
+## COMP3334 - Computer Systems Security: Coursework Group Project (2024)
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.0.2-green.svg)](https://flask.palletsprojects.com/)
